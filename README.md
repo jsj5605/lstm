@@ -206,6 +206,117 @@ print("에폭당 step수:", len(trainloader), len(testloader))
 output:
 에폭당 step수: 23 6
 ```
+## 8. 모델정의
+```python
+class StockLSTM(nn.Module):
+
+    def __init__(self, input_size:"feature수", hidden_size:"hidden(유닛)수", num_layers:"layer수"=1, bidirectional:"양방향여부"=False):
+        super().__init__()
+        self.lstm = nn.LSTM(input_size=input_size,
+                            hidden_size=hidden_size,
+                            num_layers=num_layers,
+                            bidirectional=bidirectional)
+        D = 2 if bidirectional else 1
+        self.output = nn.Linear(D*num_layers*hidden_size, 1)
+
+    
+
+    def forward(self, X):
+        # LSTM(특성추출) ---hidden state---> Linear -> 예측결과
+        # X: (batch, seq, feature) -> (seq, batch, feature)
+        X = X.permute(1, 0, 2)
+        
+        out, (hidden_state, cell_state) = self.lstm(X)
+        # hidden state(seq, batch, hidden)
+        hidden_state = hidden_state.permute(1, 0, 2)
+        hidden_state = nn.Flatten()(hidden_state)
+        pred = self.output(hidden_state) # W@X + b
+        # nn.Sigmoid()(pred) # 0 ~ 1 사이로 맞춰줌
+        return pred
+```
+```python
+model = StockLSTM(input_size=6, hidden_size=50)
+
+torchinfo.summary(model, (200, 50, 6))
+
+output:
+==========================================================================================
+Layer (type:depth-idx)                   Output Shape              Param #
+==========================================================================================
+StockLSTM                                [200, 1]                  --
+├─LSTM: 1-1                              [50, 200, 50]             11,600
+├─Linear: 1-2                            [200, 1]                  51
+==========================================================================================
+Total params: 11,651
+Trainable params: 11,651
+Non-trainable params: 0
+Total mult-adds (M): 116.01
+==========================================================================================
+Input size (MB): 0.24
+Forward/backward pass size (MB): 4.00
+Params size (MB): 0.05
+Estimated Total Size (MB): 4.29
+==========================================================================================
+```
+## 9. train
+### 하이퍼파라미터 정의
+```python
+N_EPOCH = 1000
+LR = 0.0001
+
+INPUT_SIZE = 6
+HIDDEN_SIZE = 30
+NUM_LAYERS = 1
+BIDIRECTIONAL = False
+
+model = StockLSTM(INPUT_SIZE, HIDDEN_SIZE, NUM_LAYERS, BIDIRECTIONAL)
+model = model.to(device)
+
+# loss fn = 회귀: MSE
+loss_fn = nn.MSELoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+```
+```python
+train_loss_list = []
+valid_loss_list = []
+
+for epoch in range(N_EPOCH):
+
+    model.train()
+    train_loss = 0.0
+    for X, y in trainloader:
+        # 1. device로 이동
+        X, y = X.to(device), y.to(device)
+        # 2. 추정
+        pred = model(X)
+        # 3. 오차
+        loss = loss_fn(pred, y)
+        # 4. grad 계산
+        loss.backward()
+        # 5. layer의 파라미터들 update
+        optimizer.step()
+        # 6. gradient 초기화
+        optimizer.zero_grad()
+        train_loss += loss.item()
+    train_loss /= len(trainloader) # train_loss의 평균 계산
+    train_loss_list.append(train_loss)
+
+    # 검증
+    model.eval()
+    valid_loss = 0.0
+    for X_valid, y_valid in testloader:
+        X_valid, y_valid = X_valid.to(device), y_valid.to(device)
+        with torch.no_grad():
+            pred_valid = model(X_valid)
+            valid_loss += loss_fn(pred_valid, y_valid).item()
+    valid_loss /= len(testloader) # valid_loss의 평균
+    valid_loss_list.append(valid_loss)
+    if epoch % 100 == 0 or epoch == (N_EPOCH -1):
+        print(f"[{epoch+1}/{N_EPOCH}] train loss: {train_loss} valid loss: {valid_loss}")
+```
+
+
+
 
 
 
