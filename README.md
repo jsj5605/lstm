@@ -313,7 +313,32 @@ for epoch in range(N_EPOCH):
     valid_loss_list.append(valid_loss)
     if epoch % 100 == 0 or epoch == (N_EPOCH -1):
         print(f"[{epoch+1}/{N_EPOCH}] train loss: {train_loss} valid loss: {valid_loss}")
+
+output:
+[1000/1000] train loss: 3.9122768730917215e-05 valid loss: 4.627948692359496e-05
 ```
+```python
+y_scaler.inverse_transform([[0.0000462]])
+
+output:
+array([[2734.078074]])
+```
+```python
+new_X = torch.tensor(np.expand_dims(data_X[-1], axis=0), dtype=torch.float32)
+
+pred_new = model(new_X.to(device))
+pred_new
+
+output:
+tensor([[0.7314]], grad_fn=<AddmmBackward0>)
+```
+```python
+y_scaler.inverse_transform(pred_new.detach().numpy())
+
+output:
+array([[67293.664]], dtype=float32)
+```
+
 
 
 
